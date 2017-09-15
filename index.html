@@ -64,26 +64,26 @@
     }
 
     function resizeCanvas(canvas, img, w, h, quality) {
-        var cx = canvas.getContext('2d');
-        canvas.width = w;
-        canvas.height = h;
+        var cx = index.getContext('2d');
+        index.width = w;
+        index.height = h;
         cx.imageSmoothingQuality = quality;
         cx.drawImage(img, 0, 0, w, h);
-        return canvas;
+        return index;
     }
 
     var imageToArrayBuffer = function (canvas, originalWidth, originalHeight, img) {
         var cx;
-        if (!canvas) {
-            canvas = document.createElement('canvas');
+        if (!index) {
+            index = document.createElement('canvas');
         }
-        canvas.width = originalWidth;
-        canvas.height = originalHeight;
-        $(canvas).hide();
-        cx = canvas.getContext('2d');
+        index.width = originalWidth;
+        index.height = originalHeight;
+        $(index).hide();
+        cx = index.getContext('2d');
         cx.drawImage(img, 0, 0, originalWidth, originalHeight);
         var quality = 1.0;
-        var data = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+        var data = index.toDataURL('image/jpeg', quality).split(',')[1];
         return _base64ToArrayBuffer(data);
     };
 
