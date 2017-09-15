@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<!--suppress ES6ConvertVarToLetConst -->
+<html>
+<head>
+    <script src="https://code.jquery.com/jquery-2.2.4.js"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <script src="jpeg-asm/dist/jpegasm.js"></script>
+</head>
+<body>
+
+<input type="file" id="file"/>
+<span>Target width: </span><input id="target-width" placeholder="number" value="512"/>
+<hr>
+<span>Original, img tag</span><br>
+<img src="" id="orig-image">
+<div hidden id="orig-info" style="float: right; height: 100%;">
+    <div>Width: <span id="orig-width"></span></div>
+    <div>Height: <span id="orig-height"></span></div>
+</div>
+<hr>
+
+<span>Canvas, imageSmoothingQuality = 'high' <button id="canvas-go">Go</button></span><br>
+<canvas width=0 height=0 id="canvas-image"></canvas>
+<hr>
+
+<span>WASM
+    <select id="wasm-alg">
+        <option value="lanczos3">uint8 + lanczos3</option>
+        <option value="mitchell">uint8 + Mitchel-Netravalli b=1/3, c=1/3</option>
+        <option value="box">uint8 + box</option>
+        <option value="triangle">uint8 + triangle</option>
+        <option value="cubicspline">uint8 + cubicspline</option>
+        <option value="catmullrom">uint8 + catmullrom</option>
+    </select>
+    <button id="wasm-go">Go</button>
+</span><br>
+<img src="" id="wasm-image">
+<hr>
+
+<script type="text/javascript">
+    function _base64ToArrayBuffer(base64) {
+        var binary_string = window.atob(base64);
+        var len = binary_string.length;
+        var bytes = new Uint8Array(len);
+        for (var i = 0; i < len; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    function arrayBufferToImageSrc(arrayBuffer) {
+        var blob = new Blob([arrayBuffer], { type: "image/jpeg" });
+        var urlCreator = window.URL || window.webkitURL;
+        return urlCreator.createObjectURL(blob);
+    }
+
+    function saveByteArray(fileName, byte) {
+        var blob = new Blob([byte]);
+        var link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+    }
+
+    function resizeCanvas(canvas, img, w, h, quality) {
+        var cx = canvas.getContext('2d');
+        canvas.width = w;
+        canvas.height = h;
+        cx.imageSmoothingQuality = quality;
+        cx.drawImage(img, 0, 0, w, h);
+        return canvas;
+    }
+
+    var imageToArrayBuffer = function (canvas, originalWidth, originalHeight, img) {
+        var cx;
+        if (!canvas) {
+            canvas = document.createElement('canvas');
+        }
+        canvas.width = originalWidth;
+        canvas.height = originalHeight;
+        $(canvas).hide();
+        cx = canvas.getContext('2d');
+        cx.drawImage(img, 0, 0, originalWidth, originalHeight);
+        var quality = 1.0;
+        var data = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+        return _base64ToArrayBuffer(data);
+    };
+
+    function resizeWasm(dataAsBuffer, srcWidth, srcHeight, targetWidth, targetHeight) {
+        var $img = $("#wasm-image");
+        $img.css('width', targetWidth);
+        $img.css('height', targetHeight);
+        console.log('resize started');
+        console.time('total');
+        console.time('decode');
+        var decoded = jpegasm.decode(dataAsBuffer);
+        console.timeEnd('decode');
+        console.time('resize');
+        var alg = $("#wasm-alg").val();
+        var resized = jpegasm.resize(decoded.buffer, srcWidth, srcHeight, targetWidth, targetHeight, alg);
+        console.timeEnd('resize');
+        console.time('encode');
+        var encoded = jpegasm.encode(resized, targetWidth, targetHeight, 100);
+        console.timeEnd('encode');
+        $img.attr('src', arrayBufferToImageSrc(encoded));
+        console.timeEnd('total');
+    }
+
+    function imageLoader(src) {
+        var df = $.Deferred();
+        var img = new Image();
+        img.onload = function () {
+            df.resolve(img);
+        };
+        img.onerror = function () {
+            df.reject(img);
+        };
+        img.src = src;
+        return df.promise();
+    }
+
+    function fileLoader(src) {
+        var df = $.Deferred();
+        var reader = new FileReader();
+        reader.onload = function () {
+            df.resolve(this.result);
+        };
+        reader.readAsArrayBuffer(src);
+        reader.onerror = function (e) {
+            df.reject(e);
+        };
+        return df.promise();
+    }
+
+    function resizeOrig() {
+        var img = window.origImg;
+        if (!img)
+            return;
+        var toWidth = $("#target-width").val();
+        var toHeight = Math.round(toWidth * img.height / img.width);
+        var $orig = $('#orig-image');
+        $orig.attr('src', img.src);
+        $orig.css('width', toWidth);
+        $orig.css('height', toHeight);
+        $("#orig-width").text(img.width);
+        $("#orig-height").text(img.height);
+        $("#orig-info").show();
+    }
+
+    $("#target-width").on("keyup", resizeOrig);
+
+    $('#file').on('change', function () {
+        var files = $('#file').prop('files');
+        if (!files || !files[0])
+            return;
+        $.when(imageLoader(URL.createObjectURL(files[0])), fileLoader(files[0])).done(function (img, arrayBuffer) {
+            window.origImg = img;
+            window.origData = arrayBuffer;
+            resizeOrig();
+        });
+    });
+
+    $("#wasm-go").click(function () {
+        var toWidth = Number($("#target-width").val());
+        var toHeight = Math.round(toWidth * window.origImg.height / window.origImg.width);
+
+        resizeWasm(window.origData, window.origImg.width, window.origImg.height, toWidth, toHeight);
+    });
+
+    $("#canvas-go").click(function () {
+        var toWidth = Number($("#target-width").val());
+        var toHeight = Math.round(toWidth * window.origImg.height / window.origImg.width);
+        resizeCanvas($("#canvas-image")[0], window.origImg, toWidth, toHeight, 'high');
+    });
+</script>
+</body>
+</html>

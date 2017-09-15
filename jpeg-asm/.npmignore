@@ -1,0 +1,10 @@
+.idea
+deps
+examples
+node_modules
+scripts
+src
+test
+CMakeLists.txt
+gulpfile.js
+shared.cmake
