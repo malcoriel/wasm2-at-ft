@@ -8,7 +8,7 @@ Slides can be found at: https://slides.com/malcoriel/wasm2-at-ft
 * modified version of [jpegasm](https://github.com/gchudnov/jpeg-asm), with added resize method
 * test page canvas.html with comparison of different algorithms for downsampling
 
-### Thanks to:
+### Thanks to
 * _Grigory Chudnov_ for providing an awesome implementation of jpegasm
 * _Oleg Mokhov_, _Vadim Makishvilli_ and _Alexey Ivanov_ for helping preparing this talk  
 
